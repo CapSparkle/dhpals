@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	mathrand "math/rand"
 	"sync"
+	"time"
 )
 
 // ID is the identifier of a DH group.
@@ -60,13 +62,32 @@ func (g *GroupParams) DHParams() *GroupParams {
 
 //GenerateKey is key generation function
 func (g *GroupParams) GenerateKey(random io.Reader) (DHKey, error) {
-	privatKey, _ := rand.Int(random, g.Q)
-	publicKey, _ := rand.Int(random, g.Q)
-	return DHKey{privatKey, publicKey}, nil
+	var ErrNotFound error = nil
+	var privateKey, publicKey *big.Int = big.NewInt(-1), big.NewInt(-1)
+
+	var modulo *big.Int
+
+	if g.Q == nil {
+		modulo = g.P
+	} else {
+		modulo = g.Q
+	}
+	if random == nil {
+		randomSource := mathrand.New(mathrand.NewSource(time.Now().UnixNano() * int64(mathrand.Uint64())))
+		privateKey.Rand(randomSource, modulo)
+	} else {
+		privateKey, _ = rand.Int(random, modulo)
+	}
+
+	publicKey.Exp(g.G, privateKey, g.P)
+
+	return DHKey{privateKey, publicKey}, ErrNotFound
 }
 
 func (g *GroupParams) DH(private, public *big.Int) (*big.Int, error) {
-	return big.NewInt(0).Exp(g.G, big.NewInt(0).Mul(private, public), g.P), nil
+	var a *big.Int = big.NewInt(-1)
+	a.Exp(public, private, g.P)
+	return a, nil
 }
 
 func (g GroupParams) DHLen() int {
